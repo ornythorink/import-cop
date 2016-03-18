@@ -1,0 +1,3 @@
+services:
+    import.csvtoarray:
+        class: AppBundle\Utils\ConvertCsvToArray
