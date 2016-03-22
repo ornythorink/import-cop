@@ -58,7 +58,7 @@ class ImportCommand extends ContainerAwareCommand
         $iterator = $this->getExtractor($this->source,$this->filename);
         $filter = $this->getFilter();
 
-        $FilteredCsvArray =   '\Cop\ImportBundle\Utils\\'. $this->prefix . 'FilteredCsvArray';
+        $FilteredCsvArray =   'AppBundle\Utils\\'. $this->prefix . 'FilteredCsvArray';
 
         $filteredIt = new $FilteredCsvArray($iterator, $filter);
 
@@ -69,7 +69,7 @@ class ImportCommand extends ContainerAwareCommand
     {
         $repoProducts = $this->getContainer()
             ->get('doctrine')
-            ->getManager()->getRepository('Cop\DataStoreBundle\Entity\Products');
+            ->getManager()->getRepository('AppBundle\Entity\Products');
 
         foreach ($filteredIt as $produit) {
             $this->createPending($this->checkIfAlreadyPending($produit));
@@ -84,7 +84,7 @@ class ImportCommand extends ContainerAwareCommand
         $slugify = new Slugify();
         $slugifiedCategory = $slugify->slugify($produit[ Sources::getSourceKey($this->source,'merchantCategoryName')  ]);
 
-        $pending = $em->getRepository('Cop\DataStoreBundle\Entity\Pending')->findOneBy(
+        $pending = $em->getRepository('AppBundle\Entity\Pending')->findOneBy(
             array(
                 'id' => $slugifiedCategory
             )
@@ -95,7 +95,7 @@ class ImportCommand extends ContainerAwareCommand
 
     protected function createPending($result){
         $em = $this->getContainer()->get('doctrine')->getManager();
-        $pendingRepo = $em->getRepository('Cop\DataStoreBundle\Entity\Pending');
+        $pendingRepo = $em->getRepository('AppBundle\Entity\Pending');
 
         if(is_null($result['pending'])){
             if(!is_null($result['produit'][Sources::getSourceKey($this->source,'merchantCategoryName')])
@@ -122,7 +122,7 @@ class ImportCommand extends ContainerAwareCommand
     protected function getFilter()
     {
         $em = $this->getContainer()->get('doctrine')->getManager();
-        $repoBlack = $em->getRepository('\Cop\DataStoreBundle\Entity\BlacklistCategories');
+        $repoBlack = $em->getRepository('\AppBundle\Entity\BlacklistCategories');
         $categories = $repoBlack->findAll();
 
         return $categories;

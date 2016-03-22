@@ -9,11 +9,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use GuzzleHttp\Client;
 
+
 class FeedLauncherCommand extends ContainerAwareCommand
 {
 
     protected $locale;
     protected $source;
+    protected $feed;
+    protected $pathToStore;
+
 
     protected function configure()
     {
@@ -41,14 +45,17 @@ class FeedLauncherCommand extends ContainerAwareCommand
 
         $this->canResetFeedTable();
 
-        exit;
-        $this->feed  = $repositoryFeed->retrieveNextCsvFeed($this->source, $this->locale);
+        $client = new Client(
+            ['base_uri' => 'http://127.0.0.1:8000']);
+        $response = $client->request('GET','/api/feeds/next/'.$this->source.'/'.$this->locale);
 
+        $this->feed = json_decode( $response->getBody()->getContents() , true);
+        var_dump($this->feed['id']);
         $this->flagAsTreated();
 
         $env = $this->getContainer()->get('kernel')->getEnvironment();
 
-        $csvFile = $this->feed->getSiteslug()  .
+        $csvFile = $this->feed['siteslug']  .
             '-'. strtolower($this->source) . '-' . $env . ".csv";
 
         $this->setPathToStore($csvFile);
@@ -56,20 +63,17 @@ class FeedLauncherCommand extends ContainerAwareCommand
         $this->copyFeed();
 
         /* @todo faire plus beau http://php-webdeveloper.com/?p=88 */
-        echo exec("php app/console import:csv " . $this->source  . " " . $this->feed->getId()  . " " . $this->locale  . " " .  $csvFile);
 
+        \Doctrine\Common\Util\Debug::dump("php app/console import:csv " . $this->source  . " " . $this->feed['id']  . " " . $this->locale  . " " .  $csvFile);
+        echo exec("php app/console import:csv " . $this->source  . " " . $this->feed['id']  . " " . $this->locale  . " " .  $csvFile);
     }
 
     public function flagAsTreated()
     {
-        $repositoryFeedCSV = $this->em->getRepository('AppBundle\Entity\FeedCSV');
-
-        $feedupdated = $repositoryFeedCSV->find($this->feed->getId());
-        $feedupdated->setFlagbatched('Y');
-
-        $this->em->persist($feedupdated);
-        $this->em->flush();
-        $this->em->clear();
+        $client = new Client(
+            ['base_uri' => 'http://127.0.0.1:8000']);
+        $response = $client->request('PUT', '/api/feeds/flag/' . $this->feed['id']);
+        $feeds = json_decode($response->getBody()->getContents());
 
         $this->canResetFeedTable();
     }
@@ -84,30 +88,25 @@ class FeedLauncherCommand extends ContainerAwareCommand
 
         if(count($flaggedActiveFeedsToProcess) == 0)
         {
-            $feeds = $repositoryFeedCSV->findBy(
-                array(
-                    'locale' => $this->locale,
-                    'source' => $this->source,
-                    'active' => 'Y'
-                )
-            );
+            $response = $client->request('GET','/api/feeds/active/'.$this->source.'/'.$this->locale);
+            $feeds = json_decode($response->getBody()->getContents(), true);
             foreach($feeds as $feed)
             {
-                $feed->setFlagbatched('N');
-                $this->em->persist($feed);
+                if($feed !== NULL){
+                   $data = array( 'json' => array('flagbatched' => 'N') );
+                   $response = $client->request('PUT', '/api/feeds/unflag/' . $feed['id'], $data);
+                   $feeds = json_decode($response->getBody()->getContents());
+                }
             }
-            $this->em->flush();
-            $this->em->clear();
         }
     }
 
     protected function copyFeed()
     {
-
         try
         {
             $request = new \GuzzleHttp\Client();
-            $response = $request->get(trim($this->feed->getFeed()));
+            $response = $request->get(trim($this->feed['feed']));
             $response = $response->getBody()->getContents();
 
             // @todo separer en deux exception, ajouter ConnectException pour guzzle (url invalide)
