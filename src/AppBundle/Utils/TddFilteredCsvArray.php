@@ -8,23 +8,20 @@ class TddFilteredCsvArray extends \FilterIterator
 {
     private $csvFilter = array();
 
-    public function __construct( \ArrayIterator $csvIterator , array $filter )
-    {
-        parent::__construct($csvIterator);
+    public function setBlackList(array $filter ){
         foreach($filter as $term){
-            $csvfilter[] = $term->getPending()->getLabel();
+            $this->csvFilter[] = $term;
         }
-        $this->csvFilter = array_flip($csvfilter);
-
     }
 
     public function accept()
     {
         $product = $this->getInnerIterator()->current();
-
-        if(isset($this->csvFilter[$product['merchantCategoryName']]) == true) {
-            return false;
-        }
-        return true;
+        return !in_array($product['merchantCategoryName'], $this->csvFilter);
     }
+
+    public function current() {
+        return $this->getInnerIterator()->current();
+    }
+
 }

@@ -2,27 +2,34 @@
 
 namespace AppBundle\Utils;
 
-class ZnxFilteredCsvArray extends \FilterIterator
+class ZnxFilteredCsvArray
 {
     private $csvFilter = array();
+    private $iterator;
 
-    public function __construct( \ArrayIterator $csvIterator , array $filter )
+    public function __construct( array $iterator)
     {
-        parent::__construct($csvIterator);
-        foreach($filter as $term){
-            $csvfilter[] = $term->getPending()->getLabel();
-        }
-        $this->csvFilter = array_flip($csvfilter);
-
+        $this->iterator = $iterator;
     }
 
-    public function accept()
-    {
-        $product = $this->getInnerIterator()->current();
-
-        if(isset($this->csvFilter[$product['MerchantProductCategoryPath']]) == true) {
-            return false;
+    public function setBlackList(array $filter ){
+        foreach($filter as $term){
+            $this->csvFilter[] = $term;
         }
-        return true;
+    }
+
+    public function getIterator()
+    {
+        $iterator = array();
+        foreach($this->iterator as $item)
+        {
+            /* @todo remplacer par une cnstante de source  */
+            if( !in_array($item['MerchantProductCategoryPath'], $this->csvFilter) )
+            {
+                $iterator[] = $item;
+            }
+        }
+
+        return $iterator;
     }
 }

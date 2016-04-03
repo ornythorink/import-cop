@@ -50,7 +50,7 @@ class FeedLauncherCommand extends ContainerAwareCommand
         $response = $client->request('GET','/api/feeds/next/'.$this->source.'/'.$this->locale);
 
         $this->feed = json_decode( $response->getBody()->getContents() , true);
-        var_dump($this->feed['id']);
+
         $this->flagAsTreated();
 
         $env = $this->getContainer()->get('kernel')->getEnvironment();
@@ -64,7 +64,7 @@ class FeedLauncherCommand extends ContainerAwareCommand
 
         /* @todo faire plus beau http://php-webdeveloper.com/?p=88 */
 
-        \Doctrine\Common\Util\Debug::dump("php app/console import:csv " . $this->source  . " " . $this->feed['id']  . " " . $this->locale  . " " .  $csvFile);
+
         echo exec("php app/console import:csv " . $this->source  . " " . $this->feed['id']  . " " . $this->locale  . " " .  $csvFile);
     }
 

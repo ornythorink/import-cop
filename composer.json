@@ -17,8 +17,10 @@
         "sensio/distribution-bundle": "~5.0",
         "sensio/framework-extra-bundle": "^3.0.2",
         "incenteev/composer-parameter-handler": "~2.0",
-        "guzzlehttp/guzzle": "^6.1",
-        "jms/serializer-bundle": "^1.1"
+        "guzzlehttp/guzzle": "^5.0",
+        "jms/serializer-bundle": "^1.1",
+        "guzzlehttp/guzzle-services": "^0.5.0",
+        "cocur/slugify": "^2.0"
     },
     "require-dev": {
         "sensio/generator-bundle": "~3.0",

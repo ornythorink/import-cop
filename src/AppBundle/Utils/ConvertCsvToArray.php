@@ -14,7 +14,7 @@ class ConvertCsvToArray {
         $header = NULL;
         $data = array();
         if (($handle = fopen($filename, 'rb')) !== FALSE) {
-            while (($row = fgetcsv($handle, 10000, $delimiter,'"', "\\"  )) !== FALSE) {
+            while (($row = fgetcsv($handle, 10000000, $delimiter,'"', "\\"  )) !== FALSE) {
                 if(!$header) {
                     $header = $row;
                 } else {
@@ -24,8 +24,7 @@ class ConvertCsvToArray {
             fclose($handle);
         }
 
-        $obj = new \ArrayObject($data);
-        return $obj->getIterator();
+        return $data;
     }
 
 }

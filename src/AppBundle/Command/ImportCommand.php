@@ -9,7 +9,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Cocur\Slugify\Slugify;
-
+use GuzzleHttp\Client;
 
 class ImportCommand extends ContainerAwareCommand
 {
@@ -47,64 +47,105 @@ class ImportCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+
+        $this->logger = $this->getContainer()->get('logger');
+
         $locale = $input->getArgument('locale');
         $this->source = $input->getArgument('source');
         $this->prefix = Sources::getSourceKey($this->source,'prefix');
-
-
         $this->filename = $input->getArgument('filename');
         $this->feedId = $input->getArgument('feedId');
 
-        $iterator = $this->getExtractor($this->source,$this->filename);
+
+        $data = $this->getExtractor($this->source,$this->filename);
+
         $filter = $this->getFilter();
 
-        $FilteredCsvArray =   'AppBundle\Utils\\'. $this->prefix . 'FilteredCsvArray';
+        $filteredCsvArray =   'AppBundle\Utils\\'. $this->prefix . 'FilteredCsvArray';
+        $filteredIt = new $filteredCsvArray($data);
+        $filteredIt->setBlackList($filter);
+        $iterator = $filteredIt->getIterator();
 
-        $filteredIt = new $FilteredCsvArray($iterator, $filter);
+        $cachePending = array();
+        foreach ($iterator as $key => $produit) {
 
-        $this->putPending($filteredIt);
-    }
+            $slugify = new Slugify();
+            $slugifiedCategory = $slugify->slugify($produit[Sources::getSourceKey($this->source,'merchantCategoryName')]);
 
-    protected function putPending($filteredIt)
-    {
-        $repoProducts = $this->getContainer()
-            ->get('doctrine')
-            ->getManager()->getRepository('AppBundle\Entity\Products');
+            if(isset($cachePending[$slugifiedCategory]) == false){
+                $cachePending[$slugifiedCategory] = $slugifiedCategory;
+                $this->createPending($this->checkIfAlreadyPending($produit));
 
-        foreach ($filteredIt as $produit) {
-            $this->createPending($this->checkIfAlreadyPending($produit));
-            $import = $this->prefix . 'ImportCsv';
-            $repoProducts->$import($produit, $this->feedId);
-        }
-    }
-
-    protected function checkIfAlreadyPending($produit)
-    {
-        $em = $this->getContainer()->get('doctrine')->getManager();
-        $slugify = new Slugify();
-        $slugifiedCategory = $slugify->slugify($produit[ Sources::getSourceKey($this->source,'merchantCategoryName')  ]);
-
-        $pending = $em->getRepository('AppBundle\Entity\Pending')->findOneBy(
-            array(
-                'id' => $slugifiedCategory
-            )
-        );
-
-        return array('pending' => $pending, 'produit' => $produit);
-    }
-
-    protected function createPending($result){
-        $em = $this->getContainer()->get('doctrine')->getManager();
-        $pendingRepo = $em->getRepository('AppBundle\Entity\Pending');
-
-        if(is_null($result['pending'])){
-            if(!is_null($result['produit'][Sources::getSourceKey($this->source,'merchantCategoryName')])
-                && $result['produit'][Sources::getSourceKey($this->source,'merchantCategoryName')] != "" )
-            {
-                $pendingRepo->createOrReplacePending($result,$this->source);
+                /*  $client = new Client(
+                     ['base_uri' => 'http://127.0.0.1:8000']);
+                 $client->request('POST',
+                     '/api/products/import/'.$this->source.'/'.$this->feedId ,
+                     array('content-type' => 'application/json'), array( 'json' => $produit)
+                 );*/
             }
         }
 
+        unlink($this->filename);
+    }
+
+//    protected function setPending( \FilterIterator  $filteredIt)
+//    {
+//        foreach ($filteredIt as $produit) {
+//            //$key = array_keys($produit);
+//            echo $produit['MerchantProductCategoryPath'];
+//
+//            $hop = $this->checkIfAlreadyPending($produit);
+//            $this->createPending($this->checkIfAlreadyPending($produit));
+//
+//             $client = new Client(
+//                ['base_uri' => 'http://127.0.0.1:8000']);
+//            $client->request('POST',
+//                '/api/products/import/'.$this->source.'/'.$this->feedId ,
+//                array('content-type' => 'application/json'), array( 'json' => $produit)
+//            );
+//
+//        }
+//        exit;
+//    }
+
+    protected function checkIfAlreadyPending($produit)
+    {
+        /* @todo il y a du slugifiy partout, methode à part */
+        $slugify = new Slugify();
+        $slugifiedCategory = $slugify->slugify($produit[Sources::getSourceKey($this->source,'merchantCategoryName')]);
+
+        $client = new Client();
+        $response = $client->get('http://127.0.0.1:8000/api/pendings/' . $slugifiedCategory);
+
+        if($response->getStatusCode() != 204)
+        {
+            $pending = json_decode($response->getBody()->getContents(), true);
+            $check = array('pending' => $pending, 'produit' => $produit);
+        } else {
+            $pending = array('id' => $slugifiedCategory,
+                'label' => $produit[Sources::getSourceKey($this->source,'merchantCategoryName')],
+                'createdat' => date("Y-m-d H:i:s") );
+            $check = array('pending' => $pending , 'produit' => $produit);
+        }
+        return $check;
+    }
+
+    protected function createPending($result){
+        /* @todo nettoyer un peu les ifs */
+        if(!is_null($result))
+        {
+            if(!is_null($result['pending'])){
+                if(!is_null($result['produit'][Sources::getSourceKey($this->source,'merchantCategoryName')])
+                    && $result['produit'][Sources::getSourceKey($this->source,'merchantCategoryName')] != "" )
+                {
+                    $client = new Client();
+                    $response = $client->post('http://127.0.0.1:8000/api/pendings/replace/' . $this->source,
+                        array('body' => $result['pending'] ) ) ;
+                    /* @todo logger les repronses et ptet broken */
+                    //echo $response->getStatusCode();
+                }
+            }
+        }
     }
 
     protected function getExtractor()
@@ -114,16 +155,22 @@ class ImportCommand extends ContainerAwareCommand
         /* @todo injecter du container */
         $converter = $this->getContainer()->get('import.csvtoarray');
         /* @todo delimiter and option */
-        $iterator = $converter->convert($fileName, Sources::getSourceKey($this->source , 'separator') );
 
-        return $iterator;
+        $data = $converter->convert($fileName, Sources::getSourceKey($this->source , 'separator') );
+
+        return $data;
     }
 
     protected function getFilter()
     {
-        $em = $this->getContainer()->get('doctrine')->getManager();
-        $repoBlack = $em->getRepository('\AppBundle\Entity\BlacklistCategories');
-        $categories = $repoBlack->findAll();
+        $categories = array();
+        $client = new Client();
+        $response = $client->get('http://127.0.0.1:8000/api/blacklistcategories');
+        $return = json_decode($response->getBody()->getContents() ,true );
+        $total = count($return);
+        for($i = 0; $i < $total; $i++){
+            $categories[] = $return[$i]['pending']['id'];
+        }
 
         return $categories;
     }
