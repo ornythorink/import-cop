@@ -2,11 +2,15 @@
 
 namespace AppBundle\Utils;
 
-
-
-class TddFilteredCsvArray extends \FilterIterator
+class TddFilteredCsvArray
 {
     private $csvFilter = array();
+    private $iterator;
+
+    public function __construct( array $iterator)
+    {
+        $this->iterator = $iterator;
+    }
 
     public function setBlackList(array $filter ){
         foreach($filter as $term){
@@ -14,14 +18,20 @@ class TddFilteredCsvArray extends \FilterIterator
         }
     }
 
-    public function accept()
+    public function getIterator()
     {
-        $product = $this->getInnerIterator()->current();
-        return !in_array($product['merchantCategoryName'], $this->csvFilter);
-    }
+        $iterator = array();
+        foreach($this->iterator as $item)
+        {
+            /* @todo remplacer par une cnstante de source  */
+            if( !in_array($item['merchantCategoryName'], $this->csvFilter) )
+            {
+                $iterator[] = $item;
+            }
+        }
 
-    public function current() {
-        return $this->getInnerIterator()->current();
+        return $iterator;
     }
-
 }
+
+

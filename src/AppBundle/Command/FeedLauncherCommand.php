@@ -45,9 +45,8 @@ class FeedLauncherCommand extends ContainerAwareCommand
 
         $this->canResetFeedTable();
 
-        $client = new Client(
-            ['base_uri' => 'http://127.0.0.1:8000']);
-        $response = $client->request('GET','/api/feeds/next/'.$this->source.'/'.$this->locale);
+        $client = new Client();
+        $response = $client->get('http://127.0.0.1:8000/api/feeds/next/'.$this->source.'/'.$this->locale);
 
         $this->feed = json_decode( $response->getBody()->getContents() , true);
 
@@ -70,9 +69,8 @@ class FeedLauncherCommand extends ContainerAwareCommand
 
     public function flagAsTreated()
     {
-        $client = new Client(
-            ['base_uri' => 'http://127.0.0.1:8000']);
-        $response = $client->request('PUT', '/api/feeds/flag/' . $this->feed['id']);
+        $client = new Client();
+        $response = $client->put('http://127.0.0.1:8000/api/feeds/flag/' . $this->feed['id']);
         $feeds = json_decode($response->getBody()->getContents());
 
         $this->canResetFeedTable();
@@ -81,20 +79,19 @@ class FeedLauncherCommand extends ContainerAwareCommand
     public function canResetFeedTable()
     {
 
-        $client = new Client(
-        ['base_uri' => 'http://127.0.0.1:8000']);
-        $response = $client->request('GET','/api/feeds/toprocess/'.$this->source.'/'.$this->locale);
+        $client = new Client();
+        $response = $client->get('http://127.0.0.1:8000/api/feeds/toprocess/'.$this->source.'/'.$this->locale);
         $flaggedActiveFeedsToProcess = json_decode($response->getBody()->getContents());
 
         if(count($flaggedActiveFeedsToProcess) == 0)
         {
-            $response = $client->request('GET','/api/feeds/active/'.$this->source.'/'.$this->locale);
+            $response = $client->get('http://127.0.0.1:8000/api/feeds/active/'.$this->source.'/'.$this->locale);
             $feeds = json_decode($response->getBody()->getContents(), true);
             foreach($feeds as $feed)
             {
                 if($feed !== NULL){
                    $data = array( 'json' => array('flagbatched' => 'N') );
-                   $response = $client->request('PUT', '/api/feeds/unflag/' . $feed['id'], $data);
+                   $response = $client->put('http://127.0.0.1:8000/api/feeds/unflag/' . $feed['id'], $data);
                    $feeds = json_decode($response->getBody()->getContents());
                 }
             }

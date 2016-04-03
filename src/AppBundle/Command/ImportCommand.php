@@ -62,6 +62,7 @@ class ImportCommand extends ContainerAwareCommand
         $filter = $this->getFilter();
 
         $filteredCsvArray =   'AppBundle\Utils\\'. $this->prefix . 'FilteredCsvArray';
+
         $filteredIt = new $filteredCsvArray($data);
         $filteredIt->setBlackList($filter);
         $iterator = $filteredIt->getIterator();
@@ -75,38 +76,16 @@ class ImportCommand extends ContainerAwareCommand
             if(isset($cachePending[$slugifiedCategory]) == false){
                 $cachePending[$slugifiedCategory] = $slugifiedCategory;
                 $this->createPending($this->checkIfAlreadyPending($produit));
-
-                /*  $client = new Client(
-                     ['base_uri' => 'http://127.0.0.1:8000']);
-                 $client->request('POST',
-                     '/api/products/import/'.$this->source.'/'.$this->feedId ,
-                     array('content-type' => 'application/json'), array( 'json' => $produit)
-                 );*/
             }
+
+            $client = new Client();
+            $client->post('http://127.0.0.1:8000/api/products/import/'.$this->source.'/'.$this->feedId ,
+               array( 'body' => $produit)
+            );
         }
 
         unlink($this->filename);
     }
-
-//    protected function setPending( \FilterIterator  $filteredIt)
-//    {
-//        foreach ($filteredIt as $produit) {
-//            //$key = array_keys($produit);
-//            echo $produit['MerchantProductCategoryPath'];
-//
-//            $hop = $this->checkIfAlreadyPending($produit);
-//            $this->createPending($this->checkIfAlreadyPending($produit));
-//
-//             $client = new Client(
-//                ['base_uri' => 'http://127.0.0.1:8000']);
-//            $client->request('POST',
-//                '/api/products/import/'.$this->source.'/'.$this->feedId ,
-//                array('content-type' => 'application/json'), array( 'json' => $produit)
-//            );
-//
-//        }
-//        exit;
-//    }
 
     protected function checkIfAlreadyPending($produit)
     {
@@ -115,19 +94,25 @@ class ImportCommand extends ContainerAwareCommand
         $slugifiedCategory = $slugify->slugify($produit[Sources::getSourceKey($this->source,'merchantCategoryName')]);
 
         $client = new Client();
-        $response = $client->get('http://127.0.0.1:8000/api/pendings/' . $slugifiedCategory);
-
-        if($response->getStatusCode() != 204)
+        if(!is_null($slugifiedCategory) || $slugifiedCategory != "")
         {
-            $pending = json_decode($response->getBody()->getContents(), true);
-            $check = array('pending' => $pending, 'produit' => $produit);
+            $response = $client->get('http://127.0.0.1:8000/api/pendings/' . $slugifiedCategory);
+
+            if($response->getStatusCode() != 204)
+            {
+                $pending = json_decode($response->getBody()->getContents(), true);
+                $check = array('pending' => $pending, 'produit' => $produit);
+            } else {
+                $pending = array('id' => $slugifiedCategory,
+                    'label' => $produit[Sources::getSourceKey($this->source,'merchantCategoryName')],
+                    'createdat' => date("Y-m-d H:i:s") );
+                $check = array('pending' => $pending , 'produit' => $produit);
+            }
         } else {
-            $pending = array('id' => $slugifiedCategory,
-                'label' => $produit[Sources::getSourceKey($this->source,'merchantCategoryName')],
-                'createdat' => date("Y-m-d H:i:s") );
-            $check = array('pending' => $pending , 'produit' => $produit);
+            $check = null;
         }
         return $check;
+
     }
 
     protected function createPending($result){
@@ -174,5 +159,26 @@ class ImportCommand extends ContainerAwareCommand
 
         return $categories;
     }
+
+    //    protected function setPending( \FilterIterator  $filteredIt)
+//    {
+//        foreach ($filteredIt as $produit) {
+//            //$key = array_keys($produit);
+//            echo $produit['MerchantProductCategoryPath'];
+//
+//            $hop = $this->checkIfAlreadyPending($produit);
+//            $this->createPending($this->checkIfAlreadyPending($produit));
+//
+//             $client = new Client(
+//                ['base_uri' => 'http://127.0.0.1:8000']);
+//            $client->request('POST',
+//                '/api/products/import/'.$this->source.'/'.$this->feedId ,
+//                array('content-type' => 'application/json'), array( 'json' => $produit)
+//            );
+//
+//        }
+//        exit;
+//    }
+
 
 }
